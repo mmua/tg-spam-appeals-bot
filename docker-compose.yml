@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  tg-spam-appeals-bot:
+    build: .
+    container_name: tg-spam-appeals-bot
+    restart: unless-stopped
+    environment:
+      APPEALS_BOT_TOKEN: ${APPEALS_BOT_TOKEN}
+      MAIN_GROUP_ID: ${MAIN_GROUP_ID}
+      ADMIN_GROUP_ID: ${ADMIN_GROUP_ID}
+      SPAM_BOT_ADMIN_TOKEN: ${SPAM_BOT_ADMIN_TOKEN}
+      DATABASE_PATH: "/data/appeals.db"
+      LOG_LEVEL: "INFO"
+      LOG_FILE: "/logs/appeals-bot.log"
+      TZ: "Europe/Moscow"
+      
+      # Optional: tg-spam API settings
+      TG_SPAM_HOST: "tg-spam"
+      TG_SPAM_PORT: "8080"
+      USE_TG_SPAM_API: "true"
+      API_TIMEOUT: "30"
+    
+    volumes:
+      - appeals_data:/data
+      - appeals_logs:/logs
+    
+    networks:
+      - appeals-network
+    
+    depends_on:
+      - tg-spam
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Your existing tg-spam service (example)
+  tg-spam:
+    image: umputun/tg-spam:latest
+    container_name: tg-spam
+    restart: unless-stopped
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      OPENAI_TOKEN: ${OPENAI_TOKEN}
+      TELEGRAM_GROUP: ${MAIN_GROUP_ID}
+      ADMIN_GROUP: ${ADMIN_GROUP_ID}
+      OPENAI_HISTORY_SIZE: "10"
+      OPENAI_CUSTOM_PROMPT: |
+        MODERATION PHILOSOPHY: Enable open, honest F1/motorsport discussion with diverse viewpoints while maintaining a safe, inclusive environment. Account for cultural communication styles in Russian and English.
+
+        PROCESS: Analyze intent→content→context→cultural norms before deciding.
+
+        REMOVE only if message contains:
+        • Political advocacy: promoting parties, candidates, campaigns, government policies, or nationalist/separatist agendas
+        • Explicit sexual content or adult services  
+        • Personal attacks: directed insults, slurs, hate speech targeting individuals or groups
+        • Commercial spam: unsolicited advertising, scams, fraud
+
+        ALWAYS ALLOW:
+        • Strong opinions and passionate debate about F1/motorsport (account for Russian directness in communication style)
+        • Criticism of drivers, teams, regulations, FIA decisions
+        • Discussions about racing logistics, venues, broadcasts in Russian context
+        • Controversial takes and unpopular opinions (when respectfully expressed)
+        • Cultural perspectives from Russian/CIS motorsport fans
+        • References to geopolitical events ONLY when directly impacting F1/racing
+
+        CULTURAL CONSIDERATIONS:
+        • Russian communication can be more direct - distinguish between cultural directness and personal attacks
+        • Allow passionate expression typical in Russian sports discussions
+        • Consider context of Russian motorsport history and fan culture
+
+        GOAL: Preserve authentic discussion while preventing genuine harm to community inclusivity.
+      TZ: "Europe/Moscow"
+      FIRST_MESSAGES_COUNT: "1000"
+      LOGGER_ENABLED: "true"
+      LOGGER_FILE: "/srv/logs/tg-spam.log"
+      LOGGER_MAX_SIZE: "5M"
+      NO_SPAM_REPLY: "true"
+      SERVER_ENABLED: "true"
+    
+    volumes:
+      - spam_logs:/srv/logs
+    
+    networks:
+      - appeals-network
+    
+    ports:
+      - "8080:8080"
+
+volumes:
+  appeals_data:
+  appeals_logs:
+  spam_logs:
+
+networks:
+  appeals-network:
+    driver: bridge
