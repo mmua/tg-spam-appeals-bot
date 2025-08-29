@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY pyproject.toml ./
+COPY README.md ./
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -e .
@@ -17,7 +18,6 @@ RUN pip install --no-cache-dir -e .
 # Copy source code
 COPY src/ ./src/
 COPY healthcheck.py ./
-COPY README.md ./
 
 # Create data and logs directories
 RUN mkdir -p /data /logs
