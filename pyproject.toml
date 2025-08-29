@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tg-spam-appeals-bot"
-version = "1.0.0"
+version = "1.0.1"
 description = "Telegram Appeals Bot for tg-spam Community Moderation"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -89,7 +89,7 @@ extend-exclude = '''
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-line_length = 88
+line_length = 120
 known_first_party = ["appeals_bot"]
 
 [tool.mypy]
@@ -143,6 +143,7 @@ source = ["src"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
+    "src/appeals_bot/main.py",
 ]
 
 [tool.coverage.report]

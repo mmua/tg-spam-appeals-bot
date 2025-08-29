@@ -26,7 +26,7 @@ class TestUtilsSmoke:
         
         assert is_valid is False
         assert error_msg is not None
-        assert len(error_msg) > 0
+        assert "не менее 10" in error_msg
     
     def test_validate_appeal_text_too_long(self):
         """Test validation of too long appeal text."""
@@ -46,6 +46,7 @@ class TestUtilsSmoke:
         
         assert is_valid is False
         assert error_msg is not None
+        assert "не может быть пустым" in error_msg
     
     def test_validate_appeal_text_whitespace_only(self):
         """Test validation of whitespace-only appeal text."""
@@ -108,7 +109,7 @@ class TestUnbanServiceSmoke:
     @pytest.mark.asyncio
     async def test_unban_service_import(self):
         """Test that unban service can be imported."""
-        from appeals_bot.utils import unban_service
+        from appeals_bot.services import unban_service
         
         assert unban_service is not None
         assert hasattr(unban_service, 'unban_user')
@@ -116,22 +117,26 @@ class TestUnbanServiceSmoke:
     @pytest.mark.asyncio
     async def test_unban_user_success(self):
         """Test successful user unban."""
-        from appeals_bot.utils import unban_service
+        from appeals_bot.services import unban_service
         
         with patch.object(unban_service, 'unban_user', return_value={'ok': True}) as mock_unban:
-            result = await unban_service.unban_user(12345)
+            result = await unban_service.unban_user(AsyncMock(), 12345)
             
             assert result['ok'] is True
-            mock_unban.assert_called_once_with(12345)
+            mock_unban.assert_called_once()
+            args, kwargs = mock_unban.call_args
+            assert args[1] == 12345
     
     @pytest.mark.asyncio
     async def test_unban_user_failure(self):
         """Test failed user unban."""
-        from appeals_bot.utils import unban_service
+        from appeals_bot.services import unban_service
         
         with patch.object(unban_service, 'unban_user', return_value={'ok': False, 'description': 'User not found'}) as mock_unban:
-            result = await unban_service.unban_user(12345)
+            result = await unban_service.unban_user(AsyncMock(), 12345)
             
             assert result['ok'] is False
             assert 'description' in result
-            mock_unban.assert_called_once_with(12345)
+            mock_unban.assert_called_once()
+            args, kwargs = mock_unban.call_args
+            assert args[1] == 12345

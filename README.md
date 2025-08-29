@@ -33,6 +33,8 @@ A Telegram bot for handling community moderation appeals in F1 discussion groups
 1. Message [@BotFather](https://t.me/BotFather) on Telegram
 2. Use `/newbot` and follow instructions
 3. Save the token for `APPEALS_BOT_TOKEN`
+4. Add the bot to both your main F1 group and admin group
+5. Give the bot admin permissions in the main group (needed for unbanning)
 
 ### 2. Setup Environment
 
@@ -67,7 +69,6 @@ python -m appeals_bot.main
 | `APPEALS_BOT_TOKEN` | Appeals bot token from BotFather | ✅ | - |
 | `MAIN_GROUP_ID` | F1 group ID (negative number) | ✅ | - |
 | `ADMIN_GROUP_ID` | Admin group ID for notifications | ✅ | - |
-| `SPAM_BOT_ADMIN_TOKEN` | Main bot token (for unbanning) | ✅ | - |
 | `DATABASE_PATH` | SQLite database file path | ❌ | `/data/appeals.db` |
 | `LOG_LEVEL` | Logging level | ❌ | `INFO` |
 | `USE_TG_SPAM_API` | Use tg-spam API for unbanning | ❌ | `true` |

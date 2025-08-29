@@ -12,24 +12,25 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml ./
 COPY README.md ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
-
 # Copy source code
 COPY src/ ./src/
 COPY healthcheck.py ./
 
-# Create data and logs directories
-RUN mkdir -p /data /logs
-
-# Set environment variables
-ENV PYTHONPATH=/app/src
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Install Python package
+RUN pip install --no-cache-dir .
 
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app /data /logs
+
+# Create data and logs directories with proper permissions
+RUN mkdir -p /data /logs && \
+    chown -R appuser:appuser /app /data /logs && \
+    chmod -R 755 /data /logs
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 USER appuser
 
 # Health check - actually tests bot connectivity to Telegram API
@@ -37,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python healthcheck.py
 
 # Run the bot
-CMD ["python", "-m", "appeals_bot.main"]
+CMD ["appeals-bot"]

@@ -1,21 +1,109 @@
-version: '3.8'
-
 services:
+  tg-spam:
+    image: umputun/tg-spam # use :master tag for latest (unstable) version
+    hostname: tg-spam
+    restart: always
+    container_name: tg-spam
+    logging: &default_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      OPENAI_TOKEN: ${OPENAI_TOKEN}
+      TELEGRAM_GROUP: "-1003058616085"
+      OPENAI_HISTORY_SIZE: "10"
+      CAS_API: ""
+      OPENAI_CUSTOM_PROMPT: |
+        MODERATION PHILOSOPHY: Enable open, honest F1/motorsport discussion with diverse viewpoints while maintaining a safe, inclusive environment for all audiences. Account for cultural communication styles in Russian and English.
+
+        PROCESS: Analyze intent→content→context→cultural norms before deciding.
+
+        Mark as spam if message contains:
+        - Political advocacy: promoting parties, candidates, campaigns, government policies, or nationalist/separatist agendas
+        - Explicit sexual content, adult services, or sexual references
+        - Personal attacks: directed insults, slurs, hate speech targeting individuals or groups
+        - Profanity or vulgar language that makes content unsafe for general audiences
+        - Commercial spam: unsolicited advertising, scams, fraud
+        - Links/URLs: ANY links except the allowed list below
+
+        ZERO TOLERANCE for profanity - this includes:
+        - Common swear words in English or Russian
+        - Mild profanity like "damn," "hell," "crap," "piss"
+        - Regional vulgar expressions or slang
+        - Acronyms or abbreviations containing profanity
+        - NO EXCEPTIONS for "heat of the moment" or "passionate expression"
+
+        LINK POLICY - ONLY ALLOW these specific domains:
+        - f1news.ru
+        - f1.com
+        - fia.com
+        - formula1.com
+        - Mark as spam ALL other links including:
+          - Social media links (twitter, instagram, youtube, etc.)
+          - News sites (even motorsport ones)
+          - Image/video hosting
+          - Shortened URLs (bit.ly, tinyurl, etc.)
+          - Any domain not explicitly listed above
+
+        LANGUAGE STANDARDS:
+        - Remove messages with profanity, crude sexual references, or excessive vulgarity
+        - Allow mild expressions of frustration (damn, hell) when not directed at individuals
+        - Consider context: occasional mild language in heated sports moments vs. gratuitous vulgarity
+        - Apply consistently across languages - profanity in Russian/English equally moderated
+
+        ALWAYS ALLOW:
+        - Strong opinions and passionate debate about F1/motorsport (while maintaining clean language)
+        - Criticism of drivers, teams, regulations, FIA decisions (without personal attacks or profanity)
+        - Discussions about racing logistics, venues, broadcasts in Russian context
+        - Controversial takes and unpopular opinions (when respectfully expressed without vulgarity)
+        - Cultural perspectives from Russian/CIS motorsport fans
+        - References to geopolitical events ONLY when directly impacting F1/racing
+
+        CULTURAL CONSIDERATIONS:
+        - Russian communication can be more direct - distinguish between cultural directness and inappropriate language
+        - Passionate expression is welcome, but should remain family-friendly
+        - Consider context of Russian motorsport history and fan culture while maintaining language standards
+
+        GOAL: Preserve authentic discussion while ensuring content remains appropriate for all audiences and preventing harm to community inclusivity.
+      TZ: "Europe/Moscow"
+      FIRST_MESSAGES_COUNT: 1000  # be very strict to users
+      ADMIN_GROUP: "-1002718172377"  # admin group id
+      LOGGER_ENABLED: "true"  # enable logging
+      LOGGER_FILE: "/srv/logs/tg-spam.log"
+      LOGGER_MAX_SIZE: "5M"  # max log file size in megabytes before rotation
+      NO_SPAM_REPLY: "true"  # do not reply to spam messages in the public group
+      SERVER_ENABLED: "true"  # enable server, default port is 8080
+      SERVER_AUTH: ""
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - tg-data:/srv/data       # mount volume with samples and dynamic files
+      - ./logs:/srv/logs        # mount logs location to host's ./log directory
+    command: --openai.check-short-messages --dbg --tg-dbg --max-emoji=-1 # command line options
+    labels:                     # labels for reproxy, runs on /tg-spam path
+        reproxy.port: "8080"    # port of the web server
+        reproxy.ping: '/ping'   # health check path
+        # uncomment to run on root path
+        # reproxy.route: '^/(.*)'
+        # reproxy.dest: '/$1'
+
   tg-spam-appeals-bot:
-    build: .
+    image: ghcr.io/mmua/tg-spam-appeals-bot:latest
     container_name: tg-spam-appeals-bot
     restart: unless-stopped
+    logging: *default_logging
     environment:
       APPEALS_BOT_TOKEN: ${APPEALS_BOT_TOKEN}
-      MAIN_GROUP_ID: ${MAIN_GROUP_ID}
-      ADMIN_GROUP_ID: ${ADMIN_GROUP_ID}
-      SPAM_BOT_ADMIN_TOKEN: ${SPAM_BOT_ADMIN_TOKEN}
+      MAIN_GROUP_ID: "-1003058616085"
+      ADMIN_GROUP_ID: "-1002718172377"
       DATABASE_PATH: "/data/appeals.db"
       LOG_LEVEL: "INFO"
       LOG_FILE: "/logs/appeals-bot.log"
       TZ: "Europe/Moscow"
       
-      # Optional: tg-spam API settings
+      # tg-spam API settings
       TG_SPAM_HOST: "tg-spam"
       TG_SPAM_PORT: "8080"
       USE_TG_SPAM_API: "true"
@@ -23,79 +111,11 @@ services:
     
     volumes:
       - appeals_data:/data
-      - appeals_logs:/logs
-    
-    networks:
-      - appeals-network
+      - ./logs:/logs
     
     depends_on:
       - tg-spam
-    
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Your existing tg-spam service (example)
-  tg-spam:
-    image: umputun/tg-spam:latest
-    container_name: tg-spam
-    restart: unless-stopped
-    environment:
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
-      OPENAI_TOKEN: ${OPENAI_TOKEN}
-      TELEGRAM_GROUP: ${MAIN_GROUP_ID}
-      ADMIN_GROUP: ${ADMIN_GROUP_ID}
-      OPENAI_HISTORY_SIZE: "10"
-      OPENAI_CUSTOM_PROMPT: |
-        MODERATION PHILOSOPHY: Enable open, honest F1/motorsport discussion with diverse viewpoints while maintaining a safe, inclusive environment. Account for cultural communication styles in Russian and English.
-
-        PROCESS: Analyze intent→content→context→cultural norms before deciding.
-
-        REMOVE only if message contains:
-        • Political advocacy: promoting parties, candidates, campaigns, government policies, or nationalist/separatist agendas
-        • Explicit sexual content or adult services  
-        • Personal attacks: directed insults, slurs, hate speech targeting individuals or groups
-        • Commercial spam: unsolicited advertising, scams, fraud
-
-        ALWAYS ALLOW:
-        • Strong opinions and passionate debate about F1/motorsport (account for Russian directness in communication style)
-        • Criticism of drivers, teams, regulations, FIA decisions
-        • Discussions about racing logistics, venues, broadcasts in Russian context
-        • Controversial takes and unpopular opinions (when respectfully expressed)
-        • Cultural perspectives from Russian/CIS motorsport fans
-        • References to geopolitical events ONLY when directly impacting F1/racing
-
-        CULTURAL CONSIDERATIONS:
-        • Russian communication can be more direct - distinguish between cultural directness and personal attacks
-        • Allow passionate expression typical in Russian sports discussions
-        • Consider context of Russian motorsport history and fan culture
-
-        GOAL: Preserve authentic discussion while preventing genuine harm to community inclusivity.
-      TZ: "Europe/Moscow"
-      FIRST_MESSAGES_COUNT: "1000"
-      LOGGER_ENABLED: "true"
-      LOGGER_FILE: "/srv/logs/tg-spam.log"
-      LOGGER_MAX_SIZE: "5M"
-      NO_SPAM_REPLY: "true"
-      SERVER_ENABLED: "true"
-    
-    volumes:
-      - spam_logs:/srv/logs
-    
-    networks:
-      - appeals-network
-    
-    ports:
-      - "8080:8080"
 
 volumes:
+  tg-data:
   appeals_data:
-  appeals_logs:
-  spam_logs:
-
-networks:
-  appeals-network:
-    driver: bridge

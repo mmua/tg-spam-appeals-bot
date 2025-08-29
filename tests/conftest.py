@@ -6,15 +6,16 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Generator
 
-from appeals_bot.database import DatabaseManager, Appeal
+from appeals_bot.database import DatabaseManager
 from appeals_bot.config import config
 
 
 @pytest.fixture
 def temp_db() -> Generator[str, None, None]:
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
-        tmp_path = tmp.name
+    # Create a temp file but don't open it, just get the path
+    fd, tmp_path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)  # Close the file descriptor so the database can use it
     
     yield tmp_path
     
@@ -25,7 +26,7 @@ def temp_db() -> Generator[str, None, None]:
 
 @pytest.fixture
 def db_manager(temp_db: str) -> DatabaseManager:
-    """Create a database manager with temporary database."""
+    """Create a database manager with temporary database for database tests."""
     return DatabaseManager(database_path=temp_db)
 
 
@@ -48,7 +49,13 @@ def mock_update():
     update.effective_user.username = 'testuser'
     update.effective_user.first_name = 'Test User'
     update.effective_chat.id = 67890
+    # Ensure message exists and has from_user matching effective_user
+    update.message = MagicMock()
     update.message.reply_text = AsyncMock()
+    update.message.from_user = MagicMock()
+    update.message.from_user.id = update.effective_user.id
+    update.message.from_user.username = update.effective_user.username
+    update.message.from_user.first_name = update.effective_user.first_name
     return update
 
 
@@ -58,6 +65,10 @@ def mock_context():
     context = MagicMock()
     context.args = []
     context.bot.send_message = AsyncMock()
+    # Mock get_chat_member to return a kicked user by default
+    mock_chat_member = MagicMock()
+    mock_chat_member.status = 'kicked'
+    context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
     return context
 
 
@@ -74,7 +85,27 @@ def mock_config():
 
 
 @pytest.fixture
-def patched_db_manager(db_manager):
-    """Fixture that patches get_db_manager to return test db_manager."""
-    with patch('appeals_bot.handlers.get_db_manager', return_value=db_manager):
-        yield db_manager
+def patched_db_manager(temp_db):
+    """Fixture that sets DATABASE_PATH, resets DB manager, and returns it.
+
+    Avoids patching handlers; all code uses get_db_manager() reading fresh config.
+    """
+    import os
+    from appeals_bot import database
+    
+    # Set environment variable for this test's DB path
+    original_db_path = os.environ.get('DATABASE_PATH')
+    os.environ['DATABASE_PATH'] = temp_db
+    
+    try:
+        # Reset and re-create the global db manager to pick env change
+        database.reset_db_manager()
+        mgr = database.get_db_manager()
+        yield mgr
+    finally:
+        # Restore original env and reset
+        if original_db_path is not None:
+            os.environ['DATABASE_PATH'] = original_db_path
+        else:
+            os.environ.pop('DATABASE_PATH', None)
+        database.reset_db_manager()
