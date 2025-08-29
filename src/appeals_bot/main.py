@@ -66,7 +66,7 @@ def create_application() -> Application:
 
     # Edited messages: react if user edits a message into a valid /appeal
     application.add_handler(
-        MessageHandler(filters.UpdateType.EDITED_MESSAGE, edited_message_handler)
+        MessageHandler(filters.TEXT & filters.UpdateType.EDITED_MESSAGE, edited_message_handler)
     )
 
     return application
